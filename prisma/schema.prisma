@@ -1,0 +1,183 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CLIENT
+  EMPLOYEE
+  ADMIN
+}
+
+enum ReleaseType {
+  ALBUM
+  SINGLE
+  EP
+}
+
+enum Format {
+  CD
+  VINYL
+  CASSETTE
+}
+
+enum Condition {
+  MINT
+  GOOD
+  WORN
+  DAMAGED
+}
+
+enum CopyStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+}
+
+enum RentalStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String   @map("first_name")
+  lastName     String   @map("last_name")
+  phoneNumber  String?  @map("phone_number")
+  role         Role     @default(CLIENT)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  clientRentals   Rental[] @relation("ClientRentals")
+  employeeRentals Rental[] @relation("EmployeeRentals")
+
+  @@map("Users")
+}
+
+model Artist {
+  id        Int      @id @default(autoincrement())
+  name      String
+  bio       String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  releases ReleaseArtist[]
+
+  @@map("Artists")
+}
+
+model Release {
+  id          Int         @id @default(autoincrement())
+  title       String
+  releaseType ReleaseType @map("release_type")
+  releaseYear Int         @map("release_year")
+  label       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  artists ReleaseArtist[]
+  genres  ReleaseGenre[]
+  tracks  Track[]
+  copies  Copy[]
+
+  @@map("Releases")
+}
+
+model ReleaseArtist {
+  releaseId Int     @map("release_id")
+  artistId  Int     @map("artist_id")
+  role      String?
+
+  release Release @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  artist  Artist  @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([releaseId, artistId])
+  @@map("Release_Artists")
+}
+
+model Genre {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  releases ReleaseGenre[]
+
+  @@map("Genres")
+}
+
+model ReleaseGenre {
+  releaseId Int @map("release_id")
+  genreId   Int @map("genre_id")
+
+  release Release @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  genre   Genre   @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([releaseId, genreId])
+  @@map("Release_Genres")
+}
+
+model Track {
+  id              Int    @id @default(autoincrement())
+  releaseId       Int    @map("release_id")
+  title           String
+  trackNumber     Int    @map("track_number")
+  durationSeconds Int    @map("duration_seconds")
+
+  release Release @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@map("Tracks")
+}
+
+model Copy {
+  id        Int        @id @default(autoincrement())
+  releaseId Int        @map("release_id")
+  barcode   String     @unique
+  format    Format
+  condition Condition  @default(GOOD)
+  status    CopyStatus @default(AVAILABLE)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  release     Release      @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  rentalItems RentalItem[]
+
+  @@map("Copies")
+}
+
+model Rental {
+  id         Int          @id @default(autoincrement())
+  clientId   Int          @map("client_id")
+  employeeId Int          @map("employee_id")
+  rentalDate DateTime     @default(now()) @map("rental_date")
+  dueDate    DateTime     @map("due_date")
+  status     RentalStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  client   User @relation("ClientRentals", fields: [clientId], references: [id], onDelete: Restrict)
+  employee User @relation("EmployeeRentals", fields: [employeeId], references: [id], onDelete: Restrict)
+
+  items RentalItem[]
+
+  @@map("Rentals")
+}
+
+model RentalItem {
+  id         Int       @id @default(autoincrement())
+  rentalId   Int       @map("rental_id")
+  copyId     Int       @map("copy_id")
+  returnDate DateTime? @map("return_date")
+  fineAmount Decimal   @default(0.00) @map("fine_amount") @db.Decimal(8, 2)
+
+  rental Rental @relation(fields: [rentalId], references: [id], onDelete: Cascade)
+  copy   Copy   @relation(fields: [copyId], references: [id], onDelete: Restrict)
+
+  @@map("Rental_Items")
+}
